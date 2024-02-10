@@ -10,7 +10,9 @@ classdef aeroSurf < handle
         X_data;
         Y_data;
         Z_data;
-        dS_vec;
+        dSx;
+        dSy;
+        dSz;
         Cp_data;
         nDivisions_i;
         nDivisions_j;
@@ -44,18 +46,13 @@ classdef aeroSurf < handle
             %Calculate normal vectors using cross product
             calculateNormals(obj);
 
-            %Extrapolate 0 length normals
-            extrapolateNullLengthNormals(obj);
-
             disp(['Normals calculated for surface: ', obj.name])
         end
 
         function flipNormals(obj)
-            for i = 1:obj.nDivisions_i
-                for j = 1:obj.nDivisions_j
-                    obj.dS_vec{j,i} = -obj.dS_vec{j,i};
-                end
-            end
+            obj.dSx = transpose(obj.dSx);
+            obj.dSy = transpose(obj.dSy);
+            obj.dSz = transpose(obj.dSz);
             disp(['Normals flipped for surface: ', obj.name])
         end
 
@@ -126,16 +123,7 @@ classdef aeroSurf < handle
 
         function drawNormals(obj)
             drawGeometry(obj)
-
-            for i = 1:(floor(obj.nDivisions_i/6)):obj.nDivisions_i
-                for j = 1:(floor(obj.nDivisions_j/6)):obj.nDivisions_j
-                    x = obj.X_data(j,i);
-                    y = obj.Y_data(j,i);
-                    z = obj.Z_data(j,i);
-                    dS = 0.25*obj.dS_vec{j,i}/norm(obj.dS_vec{j,i});
-                    arrow3([x,y,z],[x+dS(1),y+dS(2),z+dS(3)],'r-1',0.5,1)
-                end
-            end
+            quiver3(obj.X_data,obj.Y_data,obj.Z_data,obj.dSx,obj.dSy,obj.dSz);
         end
 
         function drawCP(obj)
@@ -158,146 +146,22 @@ classdef aeroSurf < handle
 
     methods (Access = protected)
         function calculateNormals(obj)
-            obj.dS_vec = cell(size(obj.X_data,1),size(obj.X_data,2));
-
-            verteces = {[0,0,0],[0,0,0],[0,0,0],[0,0,0]};
-            for i = 1:obj.nDivisions_i
-                for j=1:obj.nDivisions_j
-
-                    if  i < obj.nDivisions_i && j < obj.nDivisions_j
-                        queryIndeces = {[i,j],[i+1,j],[i,j+1],[i+1,j+1]};
-                        for k = 1:4
-                            currentVertexIndeces = queryIndeces{k};
-                            verteces{k} = [obj.X_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Y_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Z_data(currentVertexIndeces(2),currentVertexIndeces(1))];
-                        end
-
-                        directionVector_i = verteces{2} - verteces{1};
-                        directionVector_j = verteces{3} - verteces{1};
-
-                    elseif i == obj.nDivisions_i && j< obj.nDivisions_j
-                        queryIndeces = {[i,j],[i-1,j],[i,j+1],[i-1,j+1]};
-                        for k = 1:4
-                            currentVertexIndeces = queryIndeces{k};
-                            verteces{k} = [obj.X_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Y_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Z_data(currentVertexIndeces(2),currentVertexIndeces(1))];
-                        end
-
-                        directionVector_i = verteces{2} - verteces{1};
-                        directionVector_j = verteces{1} - verteces{3};
-                        
-                    elseif i < obj.nDivisions_i && j == obj.nDivisions_j
-                        queryIndeces = {[i,j],[i+1,j],[i,j-1],[i+1,j-1]};
-                        for k = 1:4
-                            currentVertexIndeces = queryIndeces{k};
-                            verteces{k} = [obj.X_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Y_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Z_data(currentVertexIndeces(2),currentVertexIndeces(1))];
-                        end
-
-                        directionVector_i = verteces{2} - verteces{1};
-                        directionVector_j = verteces{3} - verteces{1};
-
-                    else % i == obj.nDivisions_i && j == obj.nDivisions_j
-                        queryIndeces = {[i,j],[i-1,j],[i,j-1],[i-1,j-1]};
-                        for k = 1:4
-                            currentVertexIndeces = queryIndeces{k};
-                            verteces{k} = [obj.X_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Y_data(currentVertexIndeces(2),currentVertexIndeces(1)),...
-                                           obj.Z_data(currentVertexIndeces(2),currentVertexIndeces(1))];
-                        end
-
-                        directionVector_i = verteces{2} - verteces{1};
-                        directionVector_j = verteces{3} - verteces{1};
-                    end
-
-                    obj.dS_vec{j,i} = cross(directionVector_i,directionVector_j);
-                    if any(isnan(obj.dS_vec{j,i}))
-                        obj.dS_vec{j,i} = [0,0,0];
-                    end
-                end
-            end            
-        end
-
-        function extrapolateNullLengthNormals(obj)
-            for i = 1:obj.nDivisions_i
-                for j=1:obj.nDivisions_j
-                    if norm(obj.dS_vec{j,i}) == 0
-
-                        interpDistance = 2;
-                        dS_matrix = zeros(interpDistance,4);
-                        if i == 1
-                            for k = 1:interpDistance
-                                dS_matrix(k,1) = k;
-                                dS_matrix(k,[2,3,4]) = obj.dS_vec{j,i+k};
-                            end
-                        elseif i == obj.nDivisions_i
-                            for k = 1:interpDistance
-                                dS_matrix(k,1) = -k;
-                                dS_matrix(k,[2,3,4]) = obj.dS_vec{j,i-k};
-                            end
-                        else
-                            for k = 1:interpDistance/2
-                                dS_matrix(k,1) = -k;
-                                dS_matrix(k,[2,3,4]) = obj.dS_vec{j,i-k};
-                            end
-                            for k = interpDistance/2:interpDistance
-                                dS_matrix(k,1) = k;
-                                dS_matrix(k,[2,3,4]) = obj.dS_vec{j,i+k};
-                            end 
-                        end
-
-                        dS_matrix_x = dS_matrix(:,2);
-                        dS_matrix_y = dS_matrix(:,3);
-                        dS_matrix_z = dS_matrix(:,4);
-
-                        dS_vec_x = interp1(dS_matrix(:,1),dS_matrix_x,0,"linear","extrap");
-                        dS_vec_y = interp1(dS_matrix(:,1),dS_matrix_y,0,"linear","extrap");
-                        dS_vec_z = interp1(dS_matrix(:,1),dS_matrix_z,0,"linear","extrap");
-
-                        obj.dS_vec{j,i} = [dS_vec_x,dS_vec_y,dS_vec_z];
-
-                        if norm(obj.dS_vec{j,i}) == 0
-                            %If norm is still 0
-                            X_str = num2str(obj.X_data(j,i));
-                            Y_str = num2str(obj.Y_data(j,i));
-                            Z_str = num2str(obj.Z_data(j,i));
-                            warning(['Singular point detected in surface: ',obj.name, ' in position: [',X_str,', ',Y_str,', ', Z_str,']', ...
-                                '. Results at this point might not be correct'])                            
-                            if i == obj.nDivisions_i
-                                obj.dS_vec{j,i} = obj.dS_vec{j,i-1};
-                            else
-                                obj.dS_vec{j,i} = obj.dS_vec{j,i+1};
-                            end
-
-                            %If after all this, norm is still 0.
-                            %Singularity spans more than a point and should
-                            %not be considered a good surface
-                            if norm(obj.dS_vec{j,i}) == 0
-                                error(['More than one singular point detected in surface: ',obj.name, ' around point: [',X_str,', ',Y_str,', ', Z_str,']', ...
-                                '. Surface definition should be reconsidered'])
-                            end
-                        end
-                    end
-                end
-            end
+            [obj.dSx,obj.dSy,obj.dSz] = surfnorm(obj.X_data,obj.Y_data,obj.Z_data);
         end
 
         function [vector3] = getFace_dS(obj,j,i)
             vector3 = [0,0,0];
+            dS_matrix = zeros(3,4);
 
             if i == obj.nDivisions_i || j == obj.nDivisions_j
-                vector3 = obj.dS_vec{j,i};
+                vector3 = [obj.dSx(j,i),obj.dSy(j,i),obj.dSz(j,i)];
                 return
             end
-            dS_matrix = [obj.dS_vec{j,i};obj.dS_vec{j+1,i};obj.dS_vec{j,i+1};obj.dS_vec{j+1,i+1}];
-            dSx = dS_matrix(:,1);
-            dSy = dS_matrix(:,2);
-            dSz = dS_matrix(:,3);
+            dS_matrix(1,:) = [obj.dSx(j,i),obj.dSx(j,i+1),obj.dSx(j+1,i),obj.dSx(j+1,i+1)];
+            dS_matrix(2,:) = [obj.dSy(j,i),obj.dSy(j,i+1),obj.dSy(j+1,i),obj.dSy(j+1,i+1)];
+            dS_matrix(3,:) = [obj.dSz(j,i),obj.dSz(j,i+1),obj.dSz(j+1,i),obj.dSz(j+1,i+1)];
 
-            vector3 = [mean(dSx),mean(dSy),mean(dSz)];
+            vector3 = [mean(dS_matrix(1,:)),mean(dS_matrix(2,:)),mean(dS_matrix(3,:))];
         end
 
         function CPface = getFace_CP(obj,j,i)

@@ -42,6 +42,7 @@ end
 Z_lower(isnan(Z_lower)) = 0;
 Z_upper(isnan(Z_upper)) = 0;
 HipersonicBody = aeroShape(X,Y,Z_lower,'lower',X,Y,Z_upper,'upper');
+
 HipersonicBody.flipNormals('lower')
 %HipersonicBody.drawNormals
 
